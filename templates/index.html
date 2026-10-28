@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TrueNAS Telemetry</title>
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+</head>
+
+<body>
+<header>
+    <h1>TrueNAS Telemetry</h1>
+    <div id="status">Connecting...</div>
+</header>
+
+<main>
+    <section id="cpu-card" class="card">
+        <h2>CPU</h2>
+
+        <div class="metric">
+            <span>Average Clock</span>
+            <span id="cpuAvg">--</span>
+        </div>
+
+        <div class="metric">
+            <span>Fastest Thread</span>
+            <span id="cpuMax">--</span>
+        </div>
+
+        <div class="metric">
+            <span>Temperature</span>
+            <span id="cpuTemp">--</span>
+        </div>
+
+        <div class="metric">
+            <span>CPU Utilization</span>
+            <span id="cpuUtil">Calculating...</span>
+        </div>
+
+        <div class="metric">
+            <span>CPU Fan</span>
+            <span id="cpuFanRpm">--</span>
+        </div>
+
+        <div class="metric">
+            <span>CPU Fan PWM</span>
+            <span id="cpuFanPwm">--</span>
+        </div>
+
+        <h3>Case Fans</h3>
+        <div id="caseFans" class="coreGrid"></div>
+
+        <h3>Per-Thread Clock</h3>
+        <div id="cpuCores" class="coreGrid"></div>
+    </section>
+
+    <section id="gpu-card" class="card">
+        <h2>GPU</h2>
+
+        <div class="metric">
+            <span>GPU Utilization</span>
+            <span id="gpuUtil">--</span>
+        </div>
+
+        <div class="metric">
+            <span>Core Clock</span>
+            <span id="gpuClock">--</span>
+        </div>
+
+        <div class="metric">
+            <span>VRAM Clock</span>
+            <span id="vramClock">--</span>
+        </div>
+
+        <div class="metric">
+            <span>VRAM Usage</span>
+            <span id="vramUsage">--</span>
+        </div>
+
+        <div class="metric">
+            <span>Memory Controller</span>
+            <span id="gpuMemUtil">--</span>
+        </div>
+
+        <div class="metric">
+            <span>Temperature</span>
+            <span id="gpuTemp">--</span>
+        </div>
+
+        <div class="metric">
+            <span>Fan Speed</span>
+            <span id="gpuFan">--</span>
+        </div>
+
+        <div class="metric">
+            <span>Power</span>
+            <span id="gpuPower">--</span>
+        </div>
+
+        <h3>Running GPU Processes</h3>
+        <div id="gpuProcesses" class="processGrid">
+            <span>Waiting for process data...</span>
+        </div>
+    </section>
+
+    <section id="disk-card" class="card">
+        <h2>Disk Power &amp; Temperatures</h2>
+
+        <div class="metric">
+            <span>Temperatures reporting</span>
+            <span id="diskCount">--</span>
+        </div>
+
+        <div class="metric">
+            <span>Minimum</span>
+            <span id="diskMin">--</span>
+        </div>
+
+        <div class="metric">
+            <span>Average</span>
+            <span id="diskAvg">--</span>
+        </div>
+
+        <div class="metric">
+            <span>Maximum</span>
+            <span id="diskMax">--</span>
+        </div>
+
+        <h3>Individual Drives</h3>
+        <div id="diskTemps" class="coreGrid"></div>
+    </section>
+
+    <section id="pool-card" class="card">
+        <h2>Pool I/O</h2>
+
+        <div id="poolIo">
+            <span>Waiting for pool data...</span>
+        </div>
+    </section>
+</main>
+
+<footer class="pollingSettings">
+    <form id="pollingForm">
+        <label for="pollingSeconds">Polling interval (seconds)</label>
+        <input id="pollingSeconds" name="pollingSeconds" type="text"
+               inputmode="decimal" value="2" required
+               aria-describedby="pollingHelp pollingStatus">
+        <button type="submit">Apply</button>
+    </form>
+    <p id="pollingHelp">Wait between updates for all CPU, GPU, disk, and pool commands. Use 1–3600 seconds.</p>
+    <p id="pollingStatus" role="status" aria-live="polite"></p>
+</footer>
+
+<script src="/static/js/dashboard.js"></script>
+</body>
+</html>

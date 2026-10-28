@@ -1,0 +1,191 @@
+:root {
+    color-scheme: dark;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #11161c;
+    color: #e8edf2;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: #11161c;
+    color: #e8edf2;
+}
+
+header {
+    padding: 18px 24px;
+    background: #18212b;
+    border-bottom: 1px solid #2b3947;
+}
+
+h1 {
+    margin: 0;
+    font-size: 1.35rem;
+}
+
+#status {
+    margin-top: 5px;
+    color: #9cacba;
+    font-size: 0.9rem;
+}
+
+main {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+    padding: 16px;
+    align-items: start;
+}
+
+.card {
+    background: #18212b;
+    border: 1px solid #2b3947;
+    border-radius: 10px;
+    padding: 16px;
+}
+
+h2 {
+    margin: 0 0 14px;
+    font-size: 1.05rem;
+}
+
+h3 {
+    margin: 18px 0 10px;
+    color: #c6d1dc;
+    font-size: 0.92rem;
+}
+
+.metric {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 7px 0;
+    border-bottom: 1px solid #263442;
+}
+
+.metric:last-child {
+    border-bottom: 0;
+}
+
+.metric span:first-child {
+    color: #9cacba;
+}
+
+.metric span:last-child {
+    font-weight: 600;
+    text-align: right;
+}
+
+.coreGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
+    gap: 8px;
+}
+
+.coreItem {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    background: #121a22;
+    border: 1px solid #263442;
+    border-radius: 7px;
+    font-size: 0.86rem;
+}
+
+.coreLabel {
+    color: #9cacba;
+}
+
+.coreClock {
+    font-weight: 600;
+}
+
+.poolItem {
+    margin-top: 14px;
+    padding: 12px;
+    background: #121a22;
+    border: 1px solid #263442;
+    border-radius: 7px;
+}
+
+.poolItem:first-child {
+    margin-top: 0;
+}
+
+.poolName {
+    margin: 0 0 8px;
+    color: #e8edf2;
+    font-size: 0.95rem;
+}
+
+.poolItem .metric {
+    padding: 6px 0;
+}
+
+/* Temperature states */
+.temp-green {
+    color: #6fda8b !important;
+    font-weight: 700 !important;
+}
+
+.temp-yellow {
+    color: #ffca68 !important;
+    font-weight: 700 !important;
+}
+
+.temp-red {
+    color: #ff7474 !important;
+    font-weight: 700 !important;
+}
+
+@media (max-width: 640px) {
+    header {
+        padding: 14px 16px;
+    }
+
+    main {
+        padding: 12px;
+        gap: 12px;
+        grid-template-columns: 1fr;
+    }
+
+    .card {
+        padding: 14px;
+    }
+
+    .coreGrid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.diskItem { flex-direction: column; }
+.diskPower { font-weight: 600; }
+.power-standby, .power-sleep { color: #8dbbff; }
+.power-active, .power-idle { color: #6fda8b; }
+.power-unknown, .power-low_power { color: #ffca68; }
+
+.pollingSettings {
+    margin: 0 16px 16px;
+    padding: 16px;
+    background: #18212b;
+    border: 1px solid #2b3947;
+    border-radius: 10px;
+}
+.pollingSettings form { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.pollingSettings input, .pollingSettings button {
+    font: inherit;
+    color: #e8edf2;
+    background: #121a22;
+    border: 1px solid #62788d;
+    border-radius: 5px;
+    padding: 8px 10px;
+}
+.pollingSettings input { width: 100px; }
+.pollingSettings button { cursor: pointer; }
+.pollingSettings p { color: #9cacba; font-size: 0.86rem; margin-bottom: 0; }
+
+.diskError { color: #ffca68; overflow-wrap: anywhere; font-size: 0.8rem; }
