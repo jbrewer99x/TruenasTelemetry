@@ -316,6 +316,41 @@ function updatePoolIo(poolData) {
     });
 }
 
+function updateGpuProcesses(processes) {
+    const container = document.getElementById("gpuProcesses");
+
+    if (!container) {
+        return;
+    }
+
+    container.replaceChildren();
+
+    if (!Array.isArray(processes)) {
+        container.textContent = "GPU process data unavailable";
+        return;
+    }
+
+    if (processes.length === 0) {
+        container.textContent = "No GPU processes running";
+        return;
+    }
+
+    processes.forEach(process => {
+        // Show just the executable; the full path is on hover.
+        const name = process.process_name.split("/").pop() || process.process_name;
+        const memory = Number(process.used_memory_mib);
+
+        const item = gridItem(
+            `${name} · PID ${process.pid}`,
+            process.used_memory_mib != null && Number.isFinite(memory)
+                ? `${Math.round(memory)} MiB`
+                : "N/A"
+        );
+        item.title = process.process_name;
+        container.appendChild(item);
+    });
+}
+
 function formatPercent(value) {
     const number = Number(value);
     return value != null && Number.isFinite(number)
@@ -491,9 +526,7 @@ async function refresh() {
             updateCoreClocks(data.cpu.clocks_mhz);
         }
 
-        if (data.gpu_processes) {
-            updateGpuProcesses(data.gpu_processes.processes);
-        }
+        updateGpuProcesses(data.gpu_processes?.processes);
 
         if (data.gpu) {
             setText(

@@ -10,149 +10,6 @@ from flask import Flask, jsonify, render_template
 
 app = Flask(__name__)
 
-@app.get("/api/gpus")
-async def gpu_summary_processes():
-    import subprocess, re
-    try:
-        r = subprocess.run(
-            ["nvidia-smi", "--query-gpu=process_id,process_name,process_start_time",
-             "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, check=True
-        )
-        lines = [l.strip() for l in r.stdout.strip().splitlines() if l.strip()]
-        out = []
-        for line in lines:
-            m = re.match(r"(\d+),([^,]+),(.*)", line)
-            if m:
-                pid, name, start = m.groups()
-                out.append({
-                    "pid": int(pid.strip()),
-                    "process_name": name.strip(),
-                    "process_start_time": start.strip()
-                })
-    except Exception as e:
-        raise HTTPException(503, f"nvidia-smi failed: {e}")
-    return {"gpus": out}
-
-@app.get("/api/gpu/{gpu_id}")
-async def gpu_info(gpu_id: int):
-    import subprocess, re
-    try:
-        r = subprocess.run(
-            ["nvidia-smi", "--query-gpu=index,name,memory.total,memory.used,memory.free,"
-             "utilization.gpu,utilization.memory,processes.count,"
-             "process_id,process_name",
-             f"--query-gpu=processes.count,process_id,process_name",
-             "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, check=True
-        )
-        lines = [l.strip() for l in r.stdout.strip().splitlines() if l.strip()]
-        out = []
-        for line in lines:
-            m = re.match(r"(\d+),([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),(.*)", line)
-            if m:
-                pid, name, start = m.groups()
-                out.append({
-                    "pid": int(pid.strip()),
-                    "process_name": name.strip(),
-                    "process_start_time": start.strip()
-                })
-    except Exception as e:
-        raise HTTPException(503, f"nvidia-smi failed: {e}")
-    return {"gpu_id": gpu_id, "processes": out}
-
-@app.get("/api/gpu/processes")
-async def gpu_processes():
-    """
-    Returns a list of all GPU processes currently using the GPU(s).
-    Output format:
-    [
-      {
-        "pid": <int>,
-        "process_name": "<str>",
-        "process_start_time": "<ISO-8601 timestamp>",
-        "process_id": "<nvidia-smi process ID>",
-        "gpu_id": <int>
-      },
-      ...
-    ]
-    """
-    import subprocess, re, json
-    try:
-        r = subprocess.run(
-            [
-                "nvidia-smi",
-                "--query-gpu=process_id,process_name,process_start_time,gpu_index",
-                "--format=csv,noheader,nounits"
-            ],
-            capture_output=True, text=True, check=True
-        )
-        lines = [l.strip() for l in r.stdout.strip().splitlines() if l.strip()]
-        out = []
-        for line in lines:
-            m = re.match(r"(.*),(.*)", line)
-            if m:
-                parts = m.groups()
-                if len(parts) != 2:
-                    continue
-                fields = [f.strip() for f in parts[0].split(",")]
-                pid, name, start = [f.strip() for f in fields[1].split(",")]
-                gpu_idx = fields[0].strip()
-                out.append({
-                    "process_id": int(pid.strip()) if pid.strip() else None,
-                    "process_name": name.strip() or "<unknown>",
-                    "process_start_time": start.strip() or None,
-                    "gpu_id": int(gpu_idx) if gpu_idx.strip() else None,
-                })
-    except subprocess.CalledProcessError:
-        raise HTTPException(503, "nvidia-smi command failed")
-    except Exception as e:
-        raise HTTPException(503, f"nvidia-smi failed: {e}")
-    return {"processes": out}
-
-@app.get("/api/gpu/{gpu_id}/processes")
-async def gpu_processes_by_gpu(gpu_id: int):
-    """
-    Returns GPU processes for a specific GPU ID.
-    Example: /api/gpu/0/processes
-    """
-    import subprocess, re, json
-    try:
-        r = subprocess.run(
-            [
-                "nvidia-smi",
-                "--query-gpu=process_id,process_name,process_start_time,gpu_index",
-                "--format=csv,noheader,nounits",
-                f"--query-gpu=process_id,process_name,process_start_time,gpu_index",
-            ],
-            capture_output=True, text=True, check=True
-        )
-        lines = [l.strip() for l in r.stdout.strip().splitlines() if l.strip()]
-        out = []
-        for line in lines:
-            m = re.match(r"(.*),(.*)", line)
-            if m:
-                parts = m.groups()
-                if len(parts) != 2:
-                    continue
-                fields = [f.strip() for f in parts[0].split(",")]
-                pid, name, start = [f.strip() for f in fields[1].split(",")]
-                gpu_idx = fields[0].strip()
-                if int(gpu_idx) != gpu_id:
-                    continue
-                out.append({
-                    "process_id": int(pid.strip()) if pid.strip() else None,
-                    "process_name": name.strip() or "<unknown>",
-                    "process_start_time": start.strip() or None,
-                })
-    except subprocess.CalledProcessError:
-        raise HTTPException(503, "nvidia-smi command failed")
-    except Exception as e:
-        raise HTTPException(503, f"nvidia-smi failed: {e}")
-    return {"gpu_id": gpu_id, "processes": out}
-
-
-
 SSH_HOST = os.environ.get("SSH_HOST", "10.0.0.10")
 SSH_PORT = int(os.environ.get("SSH_PORT", "22"))
 SSH_USER = os.environ.get("SSH_USER", "truenas_admin")
@@ -525,6 +382,48 @@ def parse_gpu() -> dict[str, Any]:
     }
 
 
+def parse_gpu_process_lines(output: str) -> list[dict[str, Any]]:
+    processes = []
+
+    for line in output.splitlines():
+        # The name may itself contain commas, so split off pid and memory.
+        pid, _, rest = line.partition(",")
+        name, _, memory = rest.rpartition(",")
+
+        try:
+            pid_number = int(pid.strip())
+        except ValueError:
+            continue
+
+        try:
+            memory_mib: float | None = float(memory.strip())
+        except ValueError:
+            # "[N/A]" / "[Not Supported]" on some drivers.
+            memory_mib = None
+
+        processes.append({
+            "pid": pid_number,
+            "process_name": name.strip() or "<unknown>",
+            "used_memory_mib": memory_mib,
+        })
+
+    return processes
+
+
+def parse_gpu_processes() -> dict[str, Any]:
+    output = ssh_command(
+        "nvidia-smi --query-compute-apps=pid,process_name,used_gpu_memory "
+        "--format=csv,noheader,nounits"
+    )
+
+    processes = parse_gpu_process_lines(output)
+
+    return {
+        "processes": processes,
+        "count": len(processes),
+    }
+
+
 def parse_disk_temperatures() -> dict[str, Any]:
     source = Path(__file__).with_name("disk_probe.py").read_text()
     return json.loads(ssh_command("python3 - <<'PYDISKS'\n" + source + "\nPYDISKS", timeout=90))
@@ -596,6 +495,9 @@ def metrics():
 
         "gpu":
             parse_gpu,
+
+        "gpu_processes":
+            parse_gpu_processes,
 
         "disks":
             parse_disk_temperatures,
