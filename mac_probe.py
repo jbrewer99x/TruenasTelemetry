@@ -77,6 +77,38 @@ def core_clusters():
     return clusters
 
 
+# Device-tree cluster types, fastest first. They don't match the perflevel
+# names: on a three-level chip P is "Super" and M is "Performance".
+CLUSTER_TYPE_RANK = ['P', 'M', 'E']
+
+
+def core_types(cpus, clusters):
+    """Initial of each CPU's performance level ('S', 'P', 'E'), indexed by CPU.
+
+    cpus are the IODeviceTree children of the 'cpus' node; clusters come from
+    core_clusters(), which lists perflevels fastest first.
+    """
+    kinds = {}
+    for cpu in cpus:
+        kind = cpu.get('cluster-type', b'').rstrip(b'\0').decode('ascii', errors='replace')
+        if 'logical-cpu-id' in cpu and kind:
+            kinds[cpu['logical-cpu-id']] = kind
+    present = sorted(set(kinds.values()),
+                     key=lambda kind: CLUSTER_TYPE_RANK.index(kind)
+                     if kind in CLUSTER_TYPE_RANK else len(CLUSTER_TYPE_RANK))
+    if len(present) != len(clusters):
+        return []
+    initials = {kind: cluster['name'][:1].upper() for kind, cluster in zip(present, clusters)}
+    return [initials.get(kinds.get(index)) for index in range(max(kinds) + 1)] if kinds else []
+
+
+def cpu_nodes():
+    nodes = plistlib.loads(subprocess.run(
+        [IOREG, '-a', '-l', '-r', '-p', 'IODeviceTree', '-n', 'cpus', '-d', '2'],
+        capture_output=True, check=True, timeout=10).stdout or b'<plist><array/></plist>')
+    return nodes[0].get('IORegistryEntryChildren', []) if nodes else []
+
+
 # --- Memory -------------------------------------------------------------
 
 PRESSURE_LEVELS = {1: 'normal', 2: 'warning', 4: 'critical'}
@@ -325,6 +357,7 @@ def collect():
     cpu = cpu_usage(ticks0, ticks1) if ticks0 and ticks1 else None
     if cpu is not None:
         cpu['clusters'] = attempt('cpu clusters', core_clusters) or []
+        cpu['core_types'] = attempt('core types', lambda: core_types(cpu_nodes(), cpu['clusters'])) or []
 
     return {
         'hostname': subprocess.run(['/bin/hostname', '-s'], capture_output=True,

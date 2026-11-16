@@ -513,8 +513,10 @@ function updateMac(mac) {
 
     const cores = document.getElementById("macCores");
     cores.replaceChildren();
+    const coreTypes = mac.cpu?.core_types || [];
     (mac.cpu?.per_cpu_percent || []).forEach((percent, index) => {
-        cores.appendChild(gridItem(`CPU ${index}`, formatPercent(percent)));
+        const type = coreTypes[index];
+        cores.appendChild(gridItem(type ? `CPU ${index} (${type})` : `CPU ${index}`, formatPercent(percent)));
     });
 }
 

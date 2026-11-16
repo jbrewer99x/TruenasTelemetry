@@ -19,6 +19,25 @@ class MacProbeTests(unittest.TestCase):
         usage = mac_probe.cpu_usage([(5, 5)], [(5, 5)])
         self.assertEqual(usage['average_percent'], 0.0)
 
+    def test_core_types_three_levels(self):
+        cpus = [{'logical-cpu-id': 0, 'cluster-type': b'E\0'},
+                {'logical-cpu-id': 1, 'cluster-type': b'M\0'},
+                {'logical-cpu-id': 2, 'cluster-type': b'P\0'}]
+        clusters = [{'name': 'Super', 'cores': 1}, {'name': 'Performance', 'cores': 1},
+                    {'name': 'Efficiency', 'cores': 1}]
+        self.assertEqual(mac_probe.core_types(cpus, clusters), ['E', 'P', 'S'])
+
+    def test_core_types_two_levels(self):
+        cpus = [{'logical-cpu-id': 1, 'cluster-type': b'P\0'},
+                {'logical-cpu-id': 0, 'cluster-type': b'E\0'}]
+        clusters = [{'name': 'Performance', 'cores': 1}, {'name': 'Efficiency', 'cores': 1}]
+        self.assertEqual(mac_probe.core_types(cpus, clusters), ['E', 'P'])
+
+    def test_core_types_mismatch_is_empty(self):
+        cpus = [{'logical-cpu-id': 0, 'cluster-type': b'E\0'}]
+        self.assertEqual(mac_probe.core_types(cpus, []), [])
+        self.assertEqual(mac_probe.core_types([], []), [])
+
     def test_disk_rates(self):
         before = {'disk0': {'model': 'SSD', 'read_bytes': 1000, 'write_bytes': 0}}
         after = {'disk0': {'model': 'SSD', 'read_bytes': 3000, 'write_bytes': 4000},
