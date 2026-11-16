@@ -3,7 +3,7 @@
 A lightweight Flask dashboard that shows live hardware telemetry from a TrueNAS
 server: CPU clocks, temperatures and fans, NVIDIA GPU stats and processes,
 per-drive power state and temperature, and ZFS pool I/O. It can also show CPU,
-GPU, temperature and storage I/O stats from a Mac.
+GPU, memory, temperature and storage I/O stats from a Mac.
 
 ![Dashboard screenshot](docs/screenshot.png)
 
@@ -31,9 +31,9 @@ The SSH account needs device access (or passwordless `sudo`) for `hdparm`,
 ### Optional: a Mac
 
 Set `MAC_SSH_HOST` to add a card with an Apple Silicon Mac's average CPU and
-GPU utilization, temperatures, and per-disk read/write throughput. On Intel
-Macs, CPU and storage I/O work, but temperatures and GPU utilization are
-likely to be unavailable. The dashboard
+GPU utilization, memory usage and pressure, temperatures, and per-disk
+read/write throughput. On Intel Macs, CPU, memory and storage I/O work, but
+temperatures and GPU utilization are likely to be unavailable. The dashboard
 runs `mac_probe.py` over SSH with the system `/usr/bin/python3` (from the Xcode
 command line tools); it needs no `sudo`.
 

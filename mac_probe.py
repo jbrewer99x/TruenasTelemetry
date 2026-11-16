@@ -9,6 +9,7 @@ import ctypes
 import ctypes.util
 import json
 import plistlib
+import re
 import subprocess
 import time
 
@@ -74,6 +75,62 @@ def core_clusters():
         clusters.append({'name': sysctl(f'hw.perflevel{level}.name'),
                          'cores': int(sysctl(f'hw.perflevel{level}.logicalcpu') or 0)})
     return clusters
+
+
+# --- Memory -------------------------------------------------------------
+
+PRESSURE_LEVELS = {1: 'normal', 2: 'warning', 4: 'critical'}
+
+
+def parse_vm_stat(text):
+    """Page size and {'Pages free': n, ...} from vm_stat output."""
+    match = re.search(r'page size of (\d+) bytes', text)
+    pages = {}
+    for line in text.splitlines()[1:]:
+        name, _, value = line.rpartition(':')
+        value = value.strip().rstrip('.')
+        if value.isdigit():
+            pages[name.strip().strip('"')] = int(value)
+    return (int(match.group(1)) if match else 4096), pages
+
+
+def parse_swap_used(text):
+    """Bytes used from sysctl vm.swapusage, e.g. 'total = 1024.00M  used = 3.25M ...'."""
+    match = re.search(r'used = ([\d.]+)([KMGT])', text)
+    if not match:
+        return None
+    scale = 1024 ** ('KMGT'.index(match.group(2)) + 1)
+    return int(float(match.group(1)) * scale)
+
+
+def memory_summary(page_size, pages, total_bytes):
+    """Breakdown matching Activity Monitor's Memory Used."""
+    def size(*names):
+        return sum(pages.get(name, 0) for name in names) * page_size
+
+    app = max(0, size('Anonymous pages') - size('Pages purgeable'))
+    wired = size('Pages wired down')
+    compressed = size('Pages occupied by compressor')
+    used = app + wired + compressed
+    return {
+        'total_bytes': total_bytes,
+        'used_bytes': used,
+        'used_percent': 100.0 * used / total_bytes if total_bytes else None,
+        'app_bytes': app,
+        'wired_bytes': wired,
+        'compressed_bytes': compressed,
+        'cached_bytes': size('File-backed pages', 'Pages purgeable'),
+    }
+
+
+def memory_stats():
+    vm_stat = subprocess.run(['/usr/bin/vm_stat'], capture_output=True, text=True,
+                             check=True, timeout=5).stdout
+    memory = memory_summary(*parse_vm_stat(vm_stat), int(sysctl('hw.memsize')))
+    memory['swap_used_bytes'] = parse_swap_used(sysctl('vm.swapusage'))
+    pressure = sysctl('kern.memorystatus_vm_pressure_level')
+    memory['pressure'] = PRESSURE_LEVELS.get(int(pressure) if pressure.isdigit() else 0)
+    return memory
 
 
 # --- GPU ----------------------------------------------------------------
@@ -263,6 +320,7 @@ def collect():
     elapsed = time.monotonic() - start
     gpu1 = attempt('gpu', lambda: gpu_stats(ioreg('-c', 'IOAccelerator', '-d', '1')))
     readings = attempt('temperatures', read_sensors) or []
+    memory = attempt('memory', memory_stats)
 
     cpu = cpu_usage(ticks0, ticks1) if ticks0 and ticks1 else None
     if cpu is not None:
@@ -273,6 +331,7 @@ def collect():
                                    text=True, timeout=5).stdout.strip(),
         'cpu': cpu,
         'gpu': average_gpu(gpu0, gpu1),
+        'memory': memory,
         'temperatures': temperature_summary(readings),
         'storage': disk_rates(disks0, disks1, elapsed) if disks0 is not None and disks1 is not None else {},
         'errors': errors,

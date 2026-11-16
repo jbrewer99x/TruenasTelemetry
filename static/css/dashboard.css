@@ -190,7 +190,8 @@ h3 {
 
 .diskError { color: #ffca68; overflow-wrap: anywhere; font-size: 0.8rem; }
 
-#macTemps .coreItem span:last-child { white-space: nowrap; }
+#macTemps .coreItem span:last-child,
+#macMemory .coreItem span:last-child { white-space: nowrap; }
 
 .processGrid { display: grid; gap: 8px; }
 .processGrid .coreLabel { overflow-wrap: anywhere; }

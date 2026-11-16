@@ -51,6 +51,31 @@ class MacProbeTests(unittest.TestCase):
         self.assertEqual(merged, {'device_util': 20.0, 'model': 'M'})
         self.assertEqual(mac_probe.average_gpu(None, {'device_util': 5}), {'device_util': 5})
 
+    def test_memory_summary_from_vm_stat(self):
+        text = ('Mach Virtual Memory Statistics: (page size of 16384 bytes)\n'
+                'Pages free:                     75092.\n'
+                'Pages wired down:                 100.\n'
+                'Pages purgeable:                   10.\n'
+                '"Translation faults":       374654103.\n'
+                'File-backed pages:                 40.\n'
+                'Anonymous pages:                  210.\n'
+                'Pages occupied by compressor:      50.\n')
+        page_size, pages = mac_probe.parse_vm_stat(text)
+        self.assertEqual(page_size, 16384)
+        self.assertEqual(pages['Translation faults'], 374654103)
+        memory = mac_probe.memory_summary(page_size, pages, 1000 * 16384)
+        self.assertEqual(memory['app_bytes'], 200 * 16384)
+        self.assertEqual(memory['used_bytes'], 350 * 16384)
+        self.assertEqual(memory['used_percent'], 35.0)
+        self.assertEqual(memory['cached_bytes'], 50 * 16384)
+
+    def test_parse_swap_used(self):
+        self.assertEqual(mac_probe.parse_swap_used(
+            'total = 2048.00M  used = 1.50G  free = 0.50G  (encrypted)'), 1610612736)
+        self.assertEqual(mac_probe.parse_swap_used(
+            'total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)'), 0)
+        self.assertIsNone(mac_probe.parse_swap_used(''))
+
 
 if __name__ == '__main__':
     unittest.main()

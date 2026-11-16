@@ -380,6 +380,52 @@ const macTemperatureLimits = {
     default: {yellow: 80, red: 95}
 };
 
+function formatGiB(bytes) {
+    const number = Number(bytes);
+    return bytes != null && Number.isFinite(number)
+        ? `${(number / 1024 ** 3).toFixed(1)} GiB`
+        : "Unavailable";
+}
+
+function updateMacMemory(memory) {
+    const breakdown = document.getElementById("macMemory");
+    const pressure = document.getElementById("macMemPressure");
+    breakdown.replaceChildren();
+    pressure.classList.remove("temp-green", "temp-yellow", "temp-red");
+
+    if (!memory) {
+        setText("macMemUsed", "Unavailable");
+        setText("macMemPressure", "Unavailable");
+        setText("macSwap", "Unavailable");
+        breakdown.textContent = "Memory data unavailable";
+        return;
+    }
+
+    const percent = Number(memory.used_percent);
+    setText(
+        "macMemUsed",
+        `${formatGiB(memory.used_bytes).replace(" GiB", "")} / ${formatGiB(memory.total_bytes)}` +
+            (Number.isFinite(percent) ? ` (${Math.round(percent)}%)` : "")
+    );
+
+    const pressureClasses = {normal: "temp-green", warning: "temp-yellow", critical: "temp-red"};
+    if (memory.pressure in pressureClasses) {
+        pressure.textContent = memory.pressure[0].toUpperCase() + memory.pressure.slice(1);
+        pressure.classList.add(pressureClasses[memory.pressure]);
+    } else {
+        pressure.textContent = "Unavailable";
+    }
+
+    setText("macSwap", formatGiB(memory.swap_used_bytes));
+
+    [
+        ["App", memory.app_bytes],
+        ["Wired", memory.wired_bytes],
+        ["Compressed", memory.compressed_bytes],
+        ["Cached files", memory.cached_bytes]
+    ].forEach(([label, bytes]) => breakdown.appendChild(gridItem(label, formatGiB(bytes))));
+}
+
 function updateMac(mac) {
     const card = document.getElementById("mac-card");
     if (!card) {
@@ -391,6 +437,7 @@ function updateMac(mac) {
         setText("macCpu", "Unavailable");
         setText("macGpu", "Unavailable");
         setText("macGpuMem", "Unavailable");
+        updateMacMemory(null);
         document.getElementById("macTemps").textContent = "Temperature data unavailable";
         document.getElementById("macStorage").textContent = "Storage I/O data unavailable";
         document.getElementById("macCores").replaceChildren();
@@ -408,6 +455,8 @@ function updateMac(mac) {
             ? `${(gpuMemory / 1024 / 1024).toFixed(0)} MiB`
             : "Unavailable"
     );
+
+    updateMacMemory(mac.memory);
 
     const temps = document.getElementById("macTemps");
     temps.replaceChildren();
