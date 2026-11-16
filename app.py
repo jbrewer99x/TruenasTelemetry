@@ -158,28 +158,41 @@ SSH_PORT = int(os.environ.get("SSH_PORT", "22"))
 SSH_USER = os.environ.get("SSH_USER", "truenas_admin")
 SSH_KEY = os.environ.get("SSH_KEY", "/run/secrets/dashboard_key")
 
+# Optional Mac whose CPU/GPU, temperatures and storage I/O are shown too.
+# Leave MAC_SSH_HOST unset to hide the Mac card.
+MAC_SSH_HOST = os.environ.get("MAC_SSH_HOST", "")
+MAC_SSH_PORT = int(os.environ.get("MAC_SSH_PORT", "22"))
+MAC_SSH_USER = os.environ.get("MAC_SSH_USER", "")
+MAC_SSH_KEY = os.environ.get("MAC_SSH_KEY", SSH_KEY)
 
-# One shared connection: opening a new SSH client per command (4 per poll)
-# churns transport threads and crypto state, which steadily grows memory.
-_ssh_client: paramiko.SSHClient | None = None
+# (host, port, user, key path)
+SshTarget = tuple[str, int, str, str]
+TRUENAS: SshTarget = (SSH_HOST, SSH_PORT, SSH_USER, SSH_KEY)
+MAC: SshTarget = (MAC_SSH_HOST, MAC_SSH_PORT, MAC_SSH_USER, MAC_SSH_KEY)
+
+
+# One shared connection per host: opening a new SSH client per command (4 per
+# poll) churns transport threads and crypto state, which steadily grows memory.
+_ssh_clients: dict[SshTarget, paramiko.SSHClient] = {}
 _ssh_lock = threading.Lock()
 
 
-def get_ssh_client() -> paramiko.SSHClient:
-    global _ssh_client
+def get_ssh_client(target: SshTarget = TRUENAS) -> paramiko.SSHClient:
+    host, port, user, key = target
 
     with _ssh_lock:
-        if _ssh_client is not None:
-            transport = _ssh_client.get_transport()
+        existing = _ssh_clients.pop(target, None)
+        if existing is not None:
+            transport = existing.get_transport()
             if transport is not None and transport.is_active():
-                return _ssh_client
-            _ssh_client.close()
-            _ssh_client = None
+                _ssh_clients[target] = existing
+                return existing
+            existing.close()
 
-        key_path = Path(SSH_KEY)
+        key_path = Path(key)
         if not key_path.is_file():
             raise RuntimeError(
-                f"SSH private key is missing or is not a file: {SSH_KEY}. "
+                f"SSH private key is missing or is not a file: {key}. "
                 "Restore the private key and check the container secret/bind mount."
             )
         client = paramiko.SSHClient()
@@ -187,10 +200,10 @@ def get_ssh_client() -> paramiko.SSHClient:
 
         try:
             client.connect(
-                hostname=SSH_HOST,
-                port=SSH_PORT,
-                username=SSH_USER,
-                key_filename=SSH_KEY,
+                hostname=host,
+                port=port,
+                username=user,
+                key_filename=key,
                 timeout=5,
                 banner_timeout=5,
                 auth_timeout=5,
@@ -200,27 +213,29 @@ def get_ssh_client() -> paramiko.SSHClient:
             raise
 
         client.get_transport().set_keepalive(30)
-        _ssh_client = client
+        _ssh_clients[target] = client
         return client
 
 
-def reset_ssh_client(client: paramiko.SSHClient) -> None:
-    global _ssh_client
-
+def reset_ssh_client(target: SshTarget, client: paramiko.SSHClient) -> None:
     with _ssh_lock:
-        if _ssh_client is client:
-            _ssh_client = None
+        if _ssh_clients.get(target) is client:
+            del _ssh_clients[target]
     client.close()
 
 
-def ssh_command(command: str, timeout: int = 15) -> str:
-    client = get_ssh_client()
+def ssh_command(
+    command: str,
+    timeout: int = 15,
+    target: SshTarget = TRUENAS,
+) -> str:
+    client = get_ssh_client(target)
 
     try:
         _, stdout, stderr = client.exec_command(command, timeout=timeout)
     except (paramiko.SSHException, EOFError, OSError):
         # Connection went stale; the next call reconnects.
-        reset_ssh_client(client)
+        reset_ssh_client(target, client)
         raise
 
     try:
@@ -515,6 +530,16 @@ def parse_disk_temperatures() -> dict[str, Any]:
     return json.loads(ssh_command("python3 - <<'PYDISKS'\n" + source + "\nPYDISKS", timeout=90))
 
 
+def parse_mac() -> dict[str, Any]:
+    # Use the system Python: Homebrew's is not on PATH for non-login SSH.
+    source = Path(__file__).with_name("mac_probe.py").read_text()
+    return json.loads(ssh_command(
+        "/usr/bin/python3 -I - <<'PYMAC'\n" + source + "\nPYMAC",
+        timeout=30,
+        target=MAC,
+    ))
+
+
 def parse_pool_io() -> dict[str, Any]:
     output = ssh_command(
         "zpool iostat -Hp 1 2",
@@ -578,6 +603,9 @@ def metrics():
         "pools":
             parse_pool_io,
     }
+
+    if MAC_SSH_HOST:
+        collectors["mac"] = parse_mac
 
     for name, collector in collectors.items():
         try:

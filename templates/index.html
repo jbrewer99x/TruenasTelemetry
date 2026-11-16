@@ -137,6 +137,34 @@
             <span>Waiting for pool data...</span>
         </div>
     </section>
+
+    <section id="mac-card" class="card" hidden>
+        <h2 id="macTitle">Mac</h2>
+
+        <div class="metric">
+            <span>CPU Utilization (avg)</span>
+            <span id="macCpu">--</span>
+        </div>
+
+        <div class="metric">
+            <span>GPU Utilization (avg)</span>
+            <span id="macGpu">--</span>
+        </div>
+
+        <div class="metric">
+            <span>GPU Memory In Use</span>
+            <span id="macGpuMem">--</span>
+        </div>
+
+        <h3>Temperatures</h3>
+        <div id="macTemps" class="coreGrid"></div>
+
+        <h3>Storage I/O</h3>
+        <div id="macStorage"></div>
+
+        <h3 id="macCoresTitle">Per-Core Utilization</h3>
+        <div id="macCores" class="coreGrid"></div>
+    </section>
 </main>
 
 <footer class="pollingSettings">

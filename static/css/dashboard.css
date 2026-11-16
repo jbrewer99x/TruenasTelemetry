@@ -189,3 +189,5 @@ h3 {
 .pollingSettings p { color: #9cacba; font-size: 0.86rem; margin-bottom: 0; }
 
 .diskError { color: #ffca68; overflow-wrap: anywhere; font-size: 0.8rem; }
+
+#macTemps .coreItem span:last-child { white-space: nowrap; }

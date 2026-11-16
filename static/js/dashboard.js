@@ -316,6 +316,124 @@ function updatePoolIo(poolData) {
     });
 }
 
+function formatPercent(value) {
+    const number = Number(value);
+    return value != null && Number.isFinite(number)
+        ? `${number.toFixed(1)}%`
+        : "Unavailable";
+}
+
+function gridItem(labelText, valueText, valueClass = "coreClock") {
+    const item = document.createElement("div");
+    item.className = "coreItem";
+
+    const label = document.createElement("span");
+    label.className = "coreLabel";
+    label.textContent = labelText;
+
+    const value = document.createElement("span");
+    value.className = valueClass;
+    value.textContent = valueText;
+
+    item.append(label, value);
+    return item;
+}
+
+const macTemperatureLimits = {
+    SSD: {yellow: 60, red: 70},
+    Battery: {yellow: 40, red: 45},
+    default: {yellow: 80, red: 95}
+};
+
+function updateMac(mac) {
+    const card = document.getElementById("mac-card");
+    if (!card) {
+        return;
+    }
+    card.hidden = false;
+
+    if (!mac) {
+        setText("macCpu", "Unavailable");
+        setText("macGpu", "Unavailable");
+        setText("macGpuMem", "Unavailable");
+        document.getElementById("macTemps").textContent = "Temperature data unavailable";
+        document.getElementById("macStorage").textContent = "Storage I/O data unavailable";
+        document.getElementById("macCores").replaceChildren();
+        return;
+    }
+
+    setText("macTitle", mac.hostname ? `Mac · ${mac.hostname}` : "Mac");
+    setText("macCpu", formatPercent(mac.cpu?.average_percent));
+    setText("macGpu", formatPercent(mac.gpu?.device_util));
+
+    const gpuMemory = Number(mac.gpu?.memory_in_use_bytes);
+    setText(
+        "macGpuMem",
+        Number.isFinite(gpuMemory)
+            ? `${(gpuMemory / 1024 / 1024).toFixed(0)} MiB`
+            : "Unavailable"
+    );
+
+    const temps = document.getElementById("macTemps");
+    temps.replaceChildren();
+    const groups = mac.temperatures || [];
+    if (groups.length === 0) {
+        temps.textContent = "Temperature data unavailable";
+    }
+    groups.forEach(group => {
+        // Show the group average; colour by its hottest sensor.
+        const limits = macTemperatureLimits[group.label] || macTemperatureLimits.default;
+        const hottest = Number(group.maximum_c);
+        const item = gridItem(
+            group.label,
+            `${Math.round(group.average_c)} °C`,
+            hottest >= limits.red ? "temp-red" : hottest >= limits.yellow ? "temp-yellow" : "temp-green"
+        );
+        item.title = `${group.sensors} sensor(s), hottest ${group.maximum_c.toFixed(1)} °C`;
+        temps.appendChild(item);
+    });
+
+    const storage = document.getElementById("macStorage");
+    storage.replaceChildren();
+    const disks = Object.entries(mac.storage || {});
+    if (disks.length === 0) {
+        storage.textContent = "Storage I/O data unavailable";
+    }
+    disks.forEach(([name, disk]) => {
+        const pool = document.createElement("div");
+        pool.className = "poolItem";
+
+        const title = document.createElement("h3");
+        title.className = "poolName";
+        title.textContent = `${name} · ${disk.model}`;
+        pool.appendChild(title);
+
+        [["Read", disk.read_bps], ["Write", disk.write_bps]].forEach(([labelText, bps]) => {
+            const metric = document.createElement("div");
+            metric.className = "metric";
+            const label = document.createElement("span");
+            label.textContent = labelText;
+            const value = document.createElement("span");
+            value.textContent = formatBytesPerSecond(bps);
+            metric.append(label, value);
+            pool.appendChild(metric);
+        });
+
+        storage.appendChild(pool);
+    });
+
+    const clusters = (mac.cpu?.clusters || [])
+        .map(cluster => `${cluster.cores} ${cluster.name}`)
+        .join(" · ");
+    setText("macCoresTitle", clusters ? `Per-Core Utilization (${clusters})` : "Per-Core Utilization");
+
+    const cores = document.getElementById("macCores");
+    cores.replaceChildren();
+    (mac.cpu?.per_cpu_percent || []).forEach((percent, index) => {
+        cores.appendChild(gridItem(`CPU ${index}`, formatPercent(percent)));
+    });
+}
+
 async function refresh() {
     try {
         const response = await fetch("/api/metrics", {
@@ -469,6 +587,11 @@ async function refresh() {
 
         if (data.pools) {
             updatePoolIo(data.pools);
+        }
+
+        // The key is absent when no Mac is configured; null means it failed.
+        if ("mac" in data) {
+            updateMac(data.mac);
         }
 
         const errors = data.errors || [];
